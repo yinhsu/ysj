@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作表內容</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="index.html" class="back-button">返回列表</a>
+            <h1 id="sheetTitle">工作表內容</h1>
+        </div>
+        <div id="tableContainer" class="table-container">
+            <div class="loading">正在載入數據...</div>
+        </div>
+    </div>
+
+    <script>
+        // 從 URL 獲取工作表名稱
+        const urlParams = new URLSearchParams(window.location.search);
+        const sheetName = urlParams.get('sheet');
+
+        // 設置頁面標題
+        document.getElementById('sheetTitle').textContent = sheetName || '工作表內容';
+
+        // 顯示工作表數據
+        function displaySheetData() {
+            try {
+                // 從 localStorage 獲取數據
+                const excelData = JSON.parse(localStorage.getItem('excelData'));
+                if (!excelData || !excelData.sheets || !excelData.sheets[sheetName]) {
+                    throw new Error('找不到工作表數據');
+                }
+
+                const data = excelData.sheets[sheetName];
+                const tableContainer = document.getElementById('tableContainer');
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    tableContainer.innerHTML = '<div class="error">工作表中沒有數據</div>';
+                    return;
+                }
+
+                // 創建表格
+                const table = document.createElement('table');
+                table.className = 'data-table';
+
+                // 創建表頭
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                data[0].forEach(headerText => {
+                    const th = document.createElement('th');
+                    th.textContent = headerText;
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+
+                // 創建表格內容
+                const tbody = document.createElement('tbody');
+                for (let i = 1; i < data.length; i++) {
+                    const row = document.createElement('tr');
+                    data[i].forEach(cellText => {
+                        const td = document.createElement('td');
+                        td.textContent = cellText;
+                        row.appendChild(td);
+                    });
+                    tbody.appendChild(row);
+                }
+                table.appendChild(tbody);
+
+                // 顯示表格
+                tableContainer.innerHTML = '';
+                tableContainer.appendChild(table);
+
+            } catch (error) {
+                console.error('Error displaying data:', error);
+                const tableContainer = document.getElementById('tableContainer');
+                tableContainer.innerHTML = `
+                    <div class="error">
+                        載入失敗: ${error.message}
+                        <br>
+                        <small>請返回列表重新載入數據</small>
+                    </div>
+                `;
+            }
+        }
+
+        // 當頁面載入時顯示數據
+        document.addEventListener('DOMContentLoaded', displaySheetData);
+    </script>
+</body>
+</html> 

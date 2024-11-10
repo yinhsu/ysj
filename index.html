@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel 工作表瀏覽器</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>異世界 一番賞即時配率</h1>
+        <button id="refreshButton" class="refresh-button">
+            <span class="refresh-icon">↻</span> 刷新數據
+        </button>
+        <div id="sheetList" class="sheet-list">
+            <div class="loading">正在載入工作表...</div>
+        </div>
+    </div>
+
+    <script>
+        const SPREADSHEET_ID = '1L0E3S1GtZnSfffLzFTYdMWVRnAsR9C6T';
+
+        async function fetchAllSheets() {
+            try {
+                const sheetList = document.getElementById('sheetList');
+                sheetList.innerHTML = '<div class="loading">正在載入工作表...</div>';
+
+                // 獲取所有工作表名稱
+                const response = await fetch('sheet.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        spreadsheetId: SPREADSHEET_ID
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                if (!data.sheets || data.sheets.length === 0) {
+                    throw new Error('無法獲取工作表列表');
+                }
+
+                // 清空列表
+                sheetList.innerHTML = '';
+
+                // 準備所有工作表的 HTML
+                const cardsHtml = data.sheets.map(sheetName => `
+                    <div class="sheet-card">
+                        <a href="view.html?sheet=${encodeURIComponent(sheetName)}">${sheetName}</a>
+                    </div>
+                `).join('');
+
+                // 一次性插入所有工作表
+                sheetList.innerHTML = cardsHtml;
+
+                // 在背景載入數據
+                data.sheets.forEach(async sheetName => {
+                    try {
+                        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+                        const sheetResponse = await fetch(url);
+                        if (sheetResponse.ok) {
+                            const csvText = await sheetResponse.text();
+                            const sheetData = parseCSV(csvText);
+                            
+                            // 存儲數據
+                            const existingData = JSON.parse(localStorage.getItem('excelData') || '{"sheets":{}}');
+                            existingData.sheets[sheetName] = sheetData;
+                            existingData.timestamp = Date.now();
+                            localStorage.setItem('excelData', JSON.stringify(existingData));
+                        }
+                    } catch (error) {
+                        console.error(`Error loading sheet ${sheetName}:`, error);
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError(`載入失敗: ${error.message}`);
+            }
+        }
+
+        // 解析 CSV 數據
+        function parseCSV(csv) {
+            const lines = csv.split('\n');
+            return lines.map(line => {
+                // 處理引號內的逗號
+                const row = [];
+                let inQuotes = false;
+                let currentValue = '';
+                
+                for (let char of line) {
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        row.push(currentValue.replace(/""/g, '"').trim());
+                        currentValue = '';
+                    } else {
+                        currentValue += char;
+                    }
+                }
+                row.push(currentValue.replace(/""/g, '"').trim());
+                return row;
+            }).filter(row => row.some(cell => cell !== '')); // 過濾空行
+        }
+
+        function showError(message) {
+            const sheetList = document.getElementById('sheetList');
+            sheetList.innerHTML = `
+                <div class="error">
+                    ${message}
+                    <br>
+                    <small>請檢查：<br>
+                    1. 試算表是否已發布到網路<br>
+                    2. 試算表 ID 是否正確<br>
+                    3. <a href="https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}" target="_blank">點擊這裡檢查試算表</a></small>
+                </div>
+            `;
+            console.error('Error occurred:', message);
+        }
+
+        // 啟動應用
+        document.addEventListener('DOMContentLoaded', () => {
+            // 綁定刷新按鈕事件
+            document.getElementById('refreshButton').addEventListener('click', fetchAllSheets);
+            
+            // 初始載入
+            fetchAllSheets();
+        });
+    </script>
+
+    <style>
+        .refresh-button {
+            padding: 10px 20px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            transition: background-color 0.2s;
+        }
+
+        .refresh-button:hover {
+            background-color: #34495e;
+        }
+
+        .refresh-icon {
+            font-size: 1.2em;
+        }
+    </style>
+</body>
+</html> 
